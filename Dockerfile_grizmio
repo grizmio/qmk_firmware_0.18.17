@@ -1,0 +1,33 @@
+FROM ubuntu:24.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt update ; apt install -y git build-essential curl wget python3-pip nano mc sudo
+
+RUN mkdir -p /root/.config/pip && \
+    /bin/echo -e "[global]\nbreak-system-packages = true\n" > /root/.config/pip/pip.conf
+
+RUN pip install --no-input "qmk==1.1.8"
+
+RUN qmk setup -y
+
+RUN cd /root/qmk_firmware && git checkout 0.18.17
+
+RUN pip install --no-input -r /root/qmk_firmware/requirements.txt
+
+RUN cd /root && git clone https://github.com/grizmio/qmk_firmware_0.18.17
+
+RUN ls /root/qmk_firmware_0.18.17/keyboards/sofle/keymaps/
+
+RUN cp -r /root/qmk_firmware_0.18.17/keyboards/sofle/keymaps/* /root/qmk_firmware/keyboards/sofle/keymaps/
+
+# RUN cp -r /root/qmk_firmware_0.18.17/keyboards/sofle/keymaps/zonekeyboard* /root/qmk_firmware/keyboards/sofle/keymaps/
+
+RUN qmk compile -kb sofle/rev1 -km default && \
+    qmk compile -kb sofle/rev1 -km zonekeyboards
+
+# RUN qmk flash -kb sofle/rev1 -km zonekeyboards
+# /root/qmk_firmware/keyboards/sofle/keymaps/
+VOLUME /root/qmk_firmware
+
+CMD ["bash", "-c", "sleep infinity"]

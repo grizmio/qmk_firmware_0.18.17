@@ -1,0 +1,15 @@
+name: qmk_zonekeyboards
+services:
+  ubuntu:
+    restart: always
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - /home/grizmio:/home/grizmio
+      - /dev:/dev
+    container_name: ubuntu2404
+    stdin_open: true
+    tty: true
+    privileged: true
+    command: /bin/bash -c "sleep infinity"
