@@ -23,11 +23,17 @@ RUN cp -r /root/qmk_firmware_0.18.17/keyboards/sofle/keymaps/* /root/qmk_firmwar
 
 # RUN cp -r /root/qmk_firmware_0.18.17/keyboards/sofle/keymaps/zonekeyboard* /root/qmk_firmware/keyboards/sofle/keymaps/
 
-RUN qmk compile -kb sofle/rev1 -km default && \
-    qmk compile -kb sofle/rev1 -km zonekeyboards
+RUN /bin/echo -e '#!/bin/bash\nset -e\n\ncd /root/qmk_firmware_0.18.17\n\
+    git reset --hard\ngit pull\ncp -r /root/qmk_firmware_0.18.17/keyboards/sofle/keymaps/* /root/qmk_firmware/keyboards/sofle/keymaps/\n' \
+    > /bin/keyboards_pull.sh \
+    && chmod +x /bin/keyboards_pull.sh
+
+RUN qmk compile -kb sofle/rev1 -km zonekeyboards
 
 # RUN qmk flash -kb sofle/rev1 -km zonekeyboards
 # /root/qmk_firmware/keyboards/sofle/keymaps/
 VOLUME /root/qmk_firmware
 
 CMD ["bash", "-c", "sleep infinity"]
+
+# docker run --restart always -v /home/grizmio:/home/grizmio --name grizmio-qmk -it --privileged -v /dev:/dev grizmio-qmk /bin/bash
