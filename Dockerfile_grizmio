@@ -28,6 +28,16 @@ RUN /bin/echo -e '#!/bin/bash\nset -e\n\ncd /root/qmk_firmware_0.18.17\n\
     > /bin/keyboards_pull.sh \
     && chmod +x /bin/keyboards_pull.sh
 
+RUN /bin/echo -e '#!/bin/bash\nset -e\n\ncd /root/qmk_firmware_0.18.17\n\
+    if [ -z "$1" ] ; then \n\
+        export K=zonekeyboards \n\
+    else \n\
+        export K="$1"\n\
+    fi\n\
+    qmk flash -kb sofle/rev1 -km "$K" \n' \
+    > /bin/flash.sh \
+    && chmod +x /bin/flash.sh
+
 RUN qmk compile -kb sofle/rev1 -km zonekeyboards
 
 # RUN qmk flash -kb sofle/rev1 -km zonekeyboards
