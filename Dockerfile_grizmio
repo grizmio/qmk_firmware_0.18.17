@@ -2,7 +2,7 @@ FROM ubuntu:24.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-RUN apt update ; apt install -y git build-essential curl wget python3-pip nano mc sudo
+RUN apt update ; apt install -y git build-essential curl wget python3-pip nano mc sudo gcc-avr
 
 RUN mkdir -p /root/.config/pip && \
     /bin/echo -e "[global]\nbreak-system-packages = true\n" > /root/.config/pip/pip.conf
@@ -19,7 +19,9 @@ RUN cd /root && git clone https://github.com/grizmio/qmk_firmware_0.18.17
 
 RUN ls /root/qmk_firmware_0.18.17/keyboards/sofle/keymaps/
 
-RUN cp -r /root/qmk_firmware_0.18.17/keyboards/sofle/keymaps/* /root/qmk_firmware/keyboards/sofle/keymaps/
+#RUN cp -r /root/qmk_firmware_0.18.17/keyboards/sofle/keymaps/* /root/qmk_firmware/keyboards/sofle/keymaps/
+
+RUN rm -fr /root/qmk_firmware/keyboards/sofle/keymaps
 
 # RUN cp -r /root/qmk_firmware_0.18.17/keyboards/sofle/keymaps/zonekeyboard* /root/qmk_firmware/keyboards/sofle/keymaps/
 
@@ -31,12 +33,21 @@ RUN /bin/echo -e '#!/bin/bash\nset -e\n\ncd /root/qmk_firmware_0.18.17\n\
 RUN /bin/echo -e '#!/bin/bash\nset -e\n\ncd /root/qmk_firmware_0.18.17\n\
     if [ -z "$1" ] ; then \n\
         export K=zonekeyboards \n\
+        rm -f /root/qmk_firmware/keyboards/sofle/keymaps || true \n\
+        ln -s /qmk_firmware/keyboards/sofle/keymaps /root/qmk_firmware/keyboards/sofle/keymaps \n\
     else \n\
         export K="$1"\n\
     fi\n\
     qmk flash -kb sofle/rev1 -km "$K" \n' \
     > /bin/flash.sh \
     && chmod +x /bin/flash.sh
+
+RUN /bin/echo -e '#!/bin/bash\nset -e \n\
+    while :; do sleep 2 ; /bin/flash.sh ; done \n' \
+    > /bin/loop_flash.sh \
+    && chmod +x /bin/loop_flash.sh
+
+RUN apt install -y avr-libc avrdude
 
 RUN qmk compile -kb sofle/rev1 -km zonekeyboards
 
@@ -46,4 +57,5 @@ VOLUME /root/qmk_firmware
 
 CMD ["bash", "-c", "sleep infinity"]
 
-# docker run --restart always -v /home/grizmio:/home/grizmio --name grizmio-qmk -it --privileged -v /dev:/dev grizmio-qmk /bin/bash
+# docker build -t qmk-grizmio -f Dockerfile_grizmio .
+# docker run --restart always -v /home/grizmio/git/qmk_firmware_0.18.17:/qmk_firmware -d --name qmk-grizmio -it --privileged -v /dev:/dev qmk-grizmio /bin/bash -c "sleep infinity"
