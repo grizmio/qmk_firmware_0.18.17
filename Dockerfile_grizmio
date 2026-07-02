@@ -42,10 +42,66 @@ RUN /bin/echo -e '#!/bin/bash\nset -e\n\ncd /root/qmk_firmware_0.18.17\n\
     > /bin/flash.sh \
     && chmod +x /bin/flash.sh
 
-RUN /bin/echo -e '#!/bin/bash\nset -e \n\
-    while :; do sleep 2 ; /bin/flash.sh ; done \n' \
-    > /bin/loop_flash.sh \
-    && chmod +x /bin/loop_flash.sh
+# loop_flash.sh: auto-flash the LATEST keymap.c on a single reset.
+# qmk flash compiles ONCE then waits for the reset, so it writes firmware built
+# BEFORE your last edit. Instead we keep the firmware compiled in the background
+# and write it the instant a half enters its (caterina) bootloader.
+RUN cat <<'SH' > /bin/loop_flash.sh && chmod +x /bin/loop_flash.sh
+#!/bin/bash
+set -u
+KB="sofle/rev1"
+KM="${1:-zonekeyboards}"
+BUILT_HEX="/root/qmk_firmware/.build/sofle_rev1_${KM}.hex"
+PUB_HEX="/root/latest_${KM}.hex"
+
+cd /root/qmk_firmware || exit 1
+
+if [ ! -L /root/qmk_firmware/keyboards/sofle/keymaps ]; then
+  rm -rf /root/qmk_firmware/keyboards/sofle/keymaps
+  ln -s /qmk_firmware/keyboards/sofle/keymaps /root/qmk_firmware/keyboards/sofle/keymaps
+fi
+
+# Background builder: keep PUB_HEX freshly built from the current keymap.c.
+# Publish atomically and only on success, so the flasher never reads a
+# half-written or broken build.
+(
+  last=""
+  while :; do
+    if qmk compile -kb "$KB" -km "$KM" >/tmp/qmk_compile.log 2>&1; then
+      if cp -f "$BUILT_HEX" "$PUB_HEX.tmp" 2>/dev/null && mv -f "$PUB_HEX.tmp" "$PUB_HEX"; then
+        cur=$(md5sum "$PUB_HEX" | cut -d' ' -f1)
+        if [ "$cur" != "$last" ]; then
+          echo "[build] fresh firmware ready: $cur"
+          last="$cur"
+        fi
+      fi
+    else
+      echo "[build] COMPILE FAILED (keeping last good firmware) - see /tmp/qmk_compile.log"
+    fi
+    sleep 1
+  done
+) &
+BUILD_PID=$!
+trap 'kill "$BUILD_PID" 2>/dev/null' EXIT
+trap 'exit 0' INT TERM
+
+echo "[flash] Ready. Reset a half into its bootloader to flash '$KM'."
+echo "[flash] Tip: save keymap.c, wait for a '[build] fresh firmware ready' line, THEN reset."
+while :; do
+  PORT=$(ls /dev/ttyACM* 2>/dev/null | head -n1)
+  if [ -n "$PORT" ] && [ -f "$PUB_HEX" ]; then
+    echo "[flash] bootloader on $PORT -> writing $(md5sum "$PUB_HEX" | cut -d' ' -f1)"
+    if avrdude -p atmega32u4 -c avr109 -P "$PORT" -U flash:w:"$PUB_HEX":i; then
+      echo "[flash] DONE on $PORT"
+    else
+      echo "[flash] avrdude failed (bootloader may have timed out) - reset and retry"
+    fi
+    while ls "$PORT" >/dev/null 2>&1; do sleep 0.3; done
+    sleep 1
+  fi
+  sleep 0.3
+done
+SH
 
 RUN apt install -y avr-libc avrdude
 
